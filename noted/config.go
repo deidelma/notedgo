@@ -2,26 +2,30 @@ package noted
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/rs/zerolog/log"
 )
 
 const defaultConfigurationFile = ".config/noted/noted.json"
 
-// configuration state
-var Configuration struct {
-	Path string
-	Data *ConfigData
+// State holds the configuration information for the project
+var State struct {
+	Path  string
+	Data  *ConfigData
+	Debug bool
 }
 
 // initialize the configuration data and path to their defaults
 func init() {
 	home, _ := os.UserHomeDir()
-	Configuration.Path = filepath.Join(home, defaultConfigurationFile)
-	Configuration.Data = MakeDefaultConfiguration()
+	State.Path = filepath.Join(home, defaultConfigurationFile)
+	State.Data = MakeDefaultConfiguration()
+	State.Debug = false
 }
 
 type ConfigData struct {
@@ -39,7 +43,14 @@ func MakeDefaultConfiguration() *ConfigData {
 		panic(fmt.Sprintf("unable to determine working directory:%v", err))
 	}
 	dbpath := cwd + string(os.PathSeparator) + "noted.sqlite3"
-	return &ConfigData{NotesPath: cwd, DatabasePath: dbpath, Initialized: true, Version: "0.5.0", Autosave: true, UseGui: false}
+	return &ConfigData{
+		NotesPath:    cwd,
+		DatabasePath: dbpath,
+		Initialized:  true,
+		Version:      "0.5.0",
+		Autosave:     true,
+		UseGui:       false,
+	}
 }
 
 func ConfigurationFileExists(path string) bool {
@@ -88,8 +99,53 @@ func ReadConfigurationFile(path string) (*ConfigData, error) {
 }
 
 // LoadConfiguration loads the data from the current configuration path
-func LoadConfiguration() {
-	LoadConfigurationFromPath(Configuration.Path)
+// or uses custom path based on command line and environment variables.
+//
+// Returns err if invalid data passed via the command line or environment variables.
+func LoadConfiguration() error {
+	debug := false
+	configPath := ""
+	ProcessEnvironment(&debug, &configPath)
+	ParseCommandLine(&debug, &configPath)
+	if debug {
+		handleDebug()
+	}
+	if configPath != "" {
+		log.Info().Msg("using custom configuration file")
+		LoadConfigurationFromPath(configPath)
+	} else {
+		LoadConfigurationFromPath(State.Path)
+	}
+	return nil
+}
+
+// ParseCommandLine checks command line parameters for overrides of environment variables and defaults.
+func ParseCommandLine(debug *bool, path *string) {
+	flag.BoolVar(debug, "debug", false, "set debug mode")
+	flag.StringVar(path, "config", "", "custom path for config file")
+	flag.Parse()
+}
+
+// ProcessEnvironment checks for program specific environment variables.  If found, the provided
+// pointers will be set to the appropriate values.
+//
+//	debug -- switch to debug mode for logging and other features.
+//	path -- set a custom path for the configuration file.
+func ProcessEnvironment(debug *bool, path *string) {
+	for _, variables := range os.Environ() {
+		pair := strings.SplitN(variables, "=", 2)
+		key := strings.ToLower(pair[0])
+		log.Info().Msg(fmt.Sprintf("%s : %s", pair[0], pair[1]))
+		if key == "NOTED_CONFIG" {
+			*path = pair[1]
+		} else if key == "NOTED_DEBUG" || key == "DEBUG" {
+			*debug = true
+		}
+	}
+}
+
+func handleDebug() {
+	log.Info().Msg("handling debug")
 }
 
 // LoadConfigurationFromPath loads the configuration data from the provided path
@@ -99,5 +155,5 @@ func LoadConfigurationFromPath(path string) {
 		log.Err(err).Msg("unable to read configuration file")
 		os.Exit(2)
 	}
-	Configuration.Data = c
+	State.Data = c
 }

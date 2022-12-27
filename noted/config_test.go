@@ -1,6 +1,7 @@
 package noted
 
 import (
+	"github.com/rs/zerolog/log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 var mockDirectory string
 
+//goland:noinspection ALL
 func setupMockDirectory(t *testing.T) func(t *testing.T) {
 	mock, _ := os.Getwd()
 
@@ -27,7 +29,11 @@ func setupMockDirectory(t *testing.T) func(t *testing.T) {
 		}
 	}
 	return func(t *testing.T) {
-		os.RemoveAll(mockDirectory)
+		err := os.RemoveAll(mockDirectory)
+		if err != nil {
+			log.Err(err)
+			t.Fail()
+		}
 	}
 }
 
@@ -52,7 +58,11 @@ func TestWriteConfigurationFile(t *testing.T) {
 
 	path := filepath.Join(mockDirectory, "noted.json")
 	conf := MakeDefaultConfiguration()
-	WriteConfigurationFile(path, conf)
+	err := WriteConfigurationFile(path, conf)
+	if err != nil {
+		log.Err(err)
+		t.Fail()
+	}
 	assert.True(t, ConfigurationFileExists(path))
 }
 func TestWriteConfigurationPath(t *testing.T) {
@@ -61,7 +71,11 @@ func TestWriteConfigurationPath(t *testing.T) {
 
 	path := filepath.Join(mockDirectory, "noted", "noted.json")
 	conf := MakeDefaultConfiguration()
-	WriteConfigurationFile(path, conf)
+	err := WriteConfigurationFile(path, conf)
+	if err != nil {
+		log.Err(err)
+		t.Fail()
+	}
 
 	assert.True(t, ConfigurationFileExists(path))
 }
@@ -72,7 +86,11 @@ func TestReadConfigurationFile(t *testing.T) {
 
 	path := mockDirectory + string(os.PathSeparator) + "noted.json"
 	conf := MakeDefaultConfiguration()
-	WriteConfigurationFile(path, conf)
+	err := WriteConfigurationFile(path, conf)
+	if err != nil {
+		log.Err(err)
+		t.Fail()
+	}
 
 	c, err := ReadConfigurationFile(path)
 	if err != nil {
@@ -84,4 +102,21 @@ func TestReadConfigurationFile(t *testing.T) {
 	assert.True(t, c.Initialized)
 	assert.False(t, c.UseGui)
 	assert.True(t, c.Autosave)
+}
+
+func TestProcessEnvironment(t *testing.T) {
+	debug := false
+	path := ""
+	err := os.Setenv("NOTED_CONFIG", "a/b/c")
+	if err != nil {
+		log.Err(err).Msg("unable to set environment variable")
+	} else {
+		log.Info().Msg("able to set NOTED_CONFIG")
+	}
+	defer os.Unsetenv("NOTED_CONFIG")
+	_ = os.Setenv("NOTED_DEBUG", "true")
+	defer os.Unsetenv("NOTED_DEBUG")
+	ProcessEnvironment(&debug, &path)
+	assert.Equal(t, true, debug)
+	assert.Equal(t, "a/b/b", path)
 }
