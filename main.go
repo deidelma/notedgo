@@ -25,6 +25,6 @@ func main() {
 		os.Exit(0)
 	}()
 	noted.InitializeLogger()
-	noted.LoadConfiguration()
+	noted.LoadConfiguration(os.Args[0], os.Args[1:])
 	noted.InitServer()
 }
