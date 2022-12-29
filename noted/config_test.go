@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/stretchr/testify/assert"
@@ -175,4 +176,33 @@ func TestParseCmdLine(t *testing.T) {
 	assert.Empty(t, cmdData.HelpMsg)
 	assert.NotEmpty(t, cmdData.Args)
 	assert.Equal(t, 4, len(cmdData.Args))
+}
+
+func TestLoadConfiguration(t *testing.T) {
+	programName := "noted"
+	var args []string
+	err := LoadConfiguration(programName, args)
+	if err != nil {
+		assert.Fail(t, "unexpected error %v", err)
+	}
+	assert.Equal(t, zerolog.InfoLevel, zerolog.GlobalLevel())
+
+	args = []string{"--debug"}
+	err = LoadConfiguration(programName, args)
+	if err != nil {
+		assert.Fail(t, "unexpected error %v", err)
+	}
+	assert.Equal(t, zerolog.DebugLevel, zerolog.GlobalLevel())
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+
+	args = []string{}
+	_ = os.Setenv("NOTED_DEBUG", "true")
+	defer func() {
+		_ = os.Unsetenv("NOTED_DEBUG")
+	}()
+	err = LoadConfiguration(programName, args)
+	if err != nil {
+		assert.Fail(t, "unexpected error %v", err)
+	}
+	assert.Equal(t, zerolog.DebugLevel, zerolog.GlobalLevel())
 }

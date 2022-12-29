@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
@@ -27,8 +28,10 @@ func init() {
 	State.Path = filepath.Join(home, defaultConfigurationFile)
 	State.Data = MakeDefaultConfiguration()
 	State.Debug = false
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 }
 
+// ConfigData holds configuration settings loaded from the configuration file.
 type ConfigData struct {
 	NotesPath    string `json:"notes_path"`
 	DatabasePath string `json:"database_path"`
@@ -38,6 +41,7 @@ type ConfigData struct {
 	UseGui       bool   `json:"use_gui"`
 }
 
+// CmdLineData holds the data returned from flag.Process()
 type CmdLineData struct {
 	Debug      bool
 	ConfigPath string
@@ -45,6 +49,8 @@ type CmdLineData struct {
 	Args       []string
 }
 
+// MakeDefaultConfiguration creates a pointer to a new instance of ConfigData
+// initialized to the hardwired system defaults.
 func MakeDefaultConfiguration() *ConfigData {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -61,6 +67,10 @@ func MakeDefaultConfiguration() *ConfigData {
 	}
 }
 
+// ConfigurationFileExists returns true if there is a
+// configuration file at the provided location.  Assumes that
+// the path is fully qualified and includes the name of the
+// file itself.
 func ConfigurationFileExists(path string) bool {
 	_, err := os.Stat(path)
 	if err != nil {
@@ -72,6 +82,9 @@ func ConfigurationFileExists(path string) bool {
 	return true
 }
 
+// WriteConfigurationFile attempts to write the configuration file
+// at the provided path using the data provide.  Currently,
+// writes a json file.
 func WriteConfigurationFile(path string, config *ConfigData) error {
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
@@ -93,6 +106,8 @@ func WriteConfigurationFile(path string, config *ConfigData) error {
 	return err
 }
 
+// ReadConfigurationFile attempts to load the configuration file
+// from the provided path.
 func ReadConfigurationFile(path string) (*ConfigData, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -109,21 +124,28 @@ func ReadConfigurationFile(path string) (*ConfigData, error) {
 // LoadConfiguration loads the data from the current configuration path
 // or uses custom path based on command line and environment variables.
 //
+// programName is usually os.Args[0]
+//
+// args is usually os.Args[1:]
+//
 // Returns err if invalid data passed via the command line or environment variables.
-func LoadConfiguration() error {
+func LoadConfiguration(programName string, args []string) error {
 	cmdData := CmdLineData{}
+	// first load environment variables
 	ProcessEnvironment(&cmdData.Debug, &cmdData.ConfigPath)
-	//err := ParseCmdLine(os.Args[0], os.Args[1:], &debug, &configPath, &output)
-	err := ParseCmdLine(os.Args[0], os.Args[1:], &cmdData)
+	// then check the command line for overrides
+	err := ParseCmdLine(programName, args, &cmdData)
 	if err != nil {
 		log.Err(err).Msg("unable to parse command line")
 		return err
 	}
-	if cmdData.Debug {
-		handleDebug()
-	}
+	// set up debug mode if necessary
+	handleDebug(cmdData.Debug)
+
+	// check for custom config path
 	if cmdData.ConfigPath != "" {
-		log.Info().Msg("using custom configuration file")
+		// use custom configuration path if provided
+		log.Debug().Msg(fmt.Sprintf("using custom configuration file: %s", cmdData.ConfigPath))
 		LoadConfigurationFromPath(cmdData.ConfigPath)
 	} else {
 		LoadConfigurationFromPath(State.Path)
@@ -141,8 +163,8 @@ func ParseCmdLine(progname string, args []string, cmdData *CmdLineData) (err err
 	var buf bytes.Buffer
 	flags.SetOutput(&buf)
 
-	flags.BoolVar(&cmdData.Debug, "debug", false, "set debug mode")
-	flags.StringVar(&cmdData.ConfigPath, "config", "", "custom path for config file")
+	flags.BoolVar(&cmdData.Debug, "debug", cmdData.Debug, "set debug mode")
+	flags.StringVar(&cmdData.ConfigPath, "config", cmdData.ConfigPath, "custom path for config file")
 	err = flags.Parse(args)
 	cmdData.HelpMsg = buf.String()
 	cmdData.Args = flags.Args()
@@ -162,8 +184,12 @@ func ProcessEnvironment(debug *bool, path *string) {
 	*debug = strings.ToLower(os.Getenv("NOTED_DEBUG")) == "true"
 }
 
-func handleDebug() {
-	log.Info().Msg("handling debug")
+func handleDebug(debugOn bool) {
+	if debugOn {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
 }
 
 // LoadConfigurationFromPath loads the configuration data from the provided path
