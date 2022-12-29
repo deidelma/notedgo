@@ -1,11 +1,13 @@
 package noted
 
 import (
-	"github.com/rs/zerolog/log"
+	"flag"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -107,16 +109,70 @@ func TestReadConfigurationFile(t *testing.T) {
 func TestProcessEnvironment(t *testing.T) {
 	debug := false
 	path := ""
-	err := os.Setenv("NOTED_CONFIG", "a/b/c")
-	if err != nil {
-		log.Err(err).Msg("unable to set environment variable")
-	} else {
-		log.Info().Msg("able to set NOTED_CONFIG")
-	}
-	defer os.Unsetenv("NOTED_CONFIG")
+	_ = os.Setenv("NOTED_CONFIG", "a/b/c")
+	defer func() {
+		_ = os.Unsetenv("NOTED_CONFIG")
+	}()
 	_ = os.Setenv("NOTED_DEBUG", "true")
-	defer os.Unsetenv("NOTED_DEBUG")
+	defer func() {
+		_ = os.Unsetenv("NOTED_DEBUG")
+	}()
+
 	ProcessEnvironment(&debug, &path)
 	assert.Equal(t, true, debug)
-	assert.Equal(t, "a/b/b", path)
+	assert.Equal(t, "a/b/c", path)
+}
+
+func TestParseCmdLine(t *testing.T) {
+	//debug := false
+	//path := ""
+	//output := ""
+	cmdData := CmdLineData{}
+	args := []string{"-debug"}
+	err := ParseCmdLine("noted", args, &cmdData)
+	assert.ErrorIs(t, err, nil, "unexpected error: %v", err)
+	assert.Equal(t, true, cmdData.Debug)
+
+	args = []string{"--debug"}
+	err = ParseCmdLine("noted", args, &cmdData)
+	assert.ErrorIs(t, err, nil, "unexpected error: %v", err)
+	assert.Equal(t, true, cmdData.Debug)
+
+	args = []string{"-debug=true"}
+	err = ParseCmdLine("noted", args, &cmdData)
+	assert.ErrorIs(t, err, nil, "unexpected error: %v", err)
+	assert.Equal(t, true, cmdData.Debug)
+
+	args = []string{"--config=/a/b/c"}
+	err = ParseCmdLine("noted", args, &cmdData)
+	assert.ErrorIs(t, err, nil, "unexpected error: %v", err)
+	assert.Equal(t, "/a/b/c", cmdData.ConfigPath)
+
+	args = []string{"--config", "/a/b/c"}
+	err = ParseCmdLine("noted", args, &cmdData)
+	assert.ErrorIs(t, err, nil, "unexpected error: %v", err)
+	assert.Equal(t, "/a/b/c", cmdData.ConfigPath)
+	assert.False(t, cmdData.Debug)
+
+	args = []string{"--config", "/a/b/c", "--debug"}
+	err = ParseCmdLine("noted", args, &cmdData)
+	assert.ErrorIs(t, err, nil, "unexpected error: %v", err)
+	assert.Equal(t, "/a/b/c", cmdData.ConfigPath)
+	assert.True(t, cmdData.Debug)
+
+	args = []string{"--help"}
+	err = ParseCmdLine("noted", args, &cmdData)
+	assert.ErrorIs(t, err, flag.ErrHelp)
+	assert.Equal(t, "", cmdData.ConfigPath)
+	assert.False(t, cmdData.Debug)
+	assert.NotEmpty(t, cmdData.HelpMsg)
+
+	args = []string{"--debug", "this", "is", "a", "test"}
+	err = ParseCmdLine("noted", args, &cmdData)
+	assert.ErrorIs(t, err, nil)
+	assert.Equal(t, "", cmdData.ConfigPath)
+	assert.True(t, cmdData.Debug)
+	assert.Empty(t, cmdData.HelpMsg)
+	assert.NotEmpty(t, cmdData.Args)
+	assert.Equal(t, 4, len(cmdData.Args))
 }

@@ -1,6 +1,7 @@
 package noted
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -35,6 +36,13 @@ type ConfigData struct {
 	Version      string `json:"version"`
 	Autosave     bool   `json:"autosave"`
 	UseGui       bool   `json:"use_gui"`
+}
+
+type CmdLineData struct {
+	Debug      bool
+	ConfigPath string
+	HelpMsg    string
+	Args       []string
 }
 
 func MakeDefaultConfiguration() *ConfigData {
@@ -74,14 +82,14 @@ func WriteConfigurationFile(path string, config *ConfigData) error {
 	_, err = os.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err := os.MkdirAll(dir, os.ModeDir)
+			err := os.MkdirAll(dir, 0777)
 			if err != nil {
 				panic("Unexpected error while trying to create directories: " + dir)
 			}
 		}
 	}
 	// write the file
-	err = os.WriteFile(path, data, 0644)
+	err = os.WriteFile(path, data, 0777)
 	return err
 }
 
@@ -103,27 +111,45 @@ func ReadConfigurationFile(path string) (*ConfigData, error) {
 //
 // Returns err if invalid data passed via the command line or environment variables.
 func LoadConfiguration() error {
-	debug := false
-	configPath := ""
-	ProcessEnvironment(&debug, &configPath)
-	ParseCommandLine(&debug, &configPath)
-	if debug {
+	cmdData := CmdLineData{}
+	ProcessEnvironment(&cmdData.Debug, &cmdData.ConfigPath)
+	//err := ParseCmdLine(os.Args[0], os.Args[1:], &debug, &configPath, &output)
+	err := ParseCmdLine(os.Args[0], os.Args[1:], &cmdData)
+	if err != nil {
+		log.Err(err).Msg("unable to parse command line")
+		return err
+	}
+	if cmdData.Debug {
 		handleDebug()
 	}
-	if configPath != "" {
+	if cmdData.ConfigPath != "" {
 		log.Info().Msg("using custom configuration file")
-		LoadConfigurationFromPath(configPath)
+		LoadConfigurationFromPath(cmdData.ConfigPath)
 	} else {
 		LoadConfigurationFromPath(State.Path)
 	}
 	return nil
 }
 
-// ParseCommandLine checks command line parameters for overrides of environment variables and defaults.
-func ParseCommandLine(debug *bool, path *string) {
-	flag.BoolVar(debug, "debug", false, "set debug mode")
-	flag.StringVar(path, "config", "", "custom path for config file")
-	flag.Parse()
+// ParseCmdLine checks command line parameters for overrides of environment variables and defaults.
+//
+// Handles parsing using the approach proposed by
+// eliben (see https://github.com/eliben/code-for-blog/blob/master/2020/go-testing-flags/main.go)
+// This layer over flag helps make testing feasible
+func ParseCmdLine(progname string, args []string, cmdData *CmdLineData) (err error) {
+	flags := flag.NewFlagSet(progname, flag.ContinueOnError)
+	var buf bytes.Buffer
+	flags.SetOutput(&buf)
+
+	flags.BoolVar(&cmdData.Debug, "debug", false, "set debug mode")
+	flags.StringVar(&cmdData.ConfigPath, "config", "", "custom path for config file")
+	err = flags.Parse(args)
+	cmdData.HelpMsg = buf.String()
+	cmdData.Args = flags.Args()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // ProcessEnvironment checks for program specific environment variables.  If found, the provided
@@ -132,16 +158,8 @@ func ParseCommandLine(debug *bool, path *string) {
 //	debug -- switch to debug mode for logging and other features.
 //	path -- set a custom path for the configuration file.
 func ProcessEnvironment(debug *bool, path *string) {
-	for _, variables := range os.Environ() {
-		pair := strings.SplitN(variables, "=", 2)
-		key := strings.ToLower(pair[0])
-		log.Info().Msg(fmt.Sprintf("%s : %s", pair[0], pair[1]))
-		if key == "NOTED_CONFIG" {
-			*path = pair[1]
-		} else if key == "NOTED_DEBUG" || key == "DEBUG" {
-			*debug = true
-		}
-	}
+	*path = os.Getenv("NOTED_CONFIG")
+	*debug = strings.ToLower(os.Getenv("NOTED_DEBUG")) == "true"
 }
 
 func handleDebug() {
