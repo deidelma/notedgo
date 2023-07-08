@@ -20,14 +20,11 @@ var (
 	}
 	//go:embed all:static
 	static embed.FS
-
-	//go: embed all:static/js
-	// jsAssets embed.FS
 )
 
 func InitServer() {
 	log.Info().Msg("initializing server")
-	RegisterFileServer()
+	RegisterFileServers()
 	RegisterHandlers()
 	err := http.ListenAndServe(":5823", nil)
 	if errors.Is(err, http.ErrServerClosed) {
@@ -38,7 +35,7 @@ func InitServer() {
 	}
 }
 
-func RegisterFileServer(){
+func RegisterFileServers(){
 	fs := http.FileServer(http.FS(static))
 	http.Handle("/static/", fs)
 	log.Info().Msg("static server initialized")
@@ -93,39 +90,5 @@ func getTriggerDelay(w http.ResponseWriter, r *http.Request){
 		log.Warn().Msg("Unable to write")
 		w.WriteHeader(http.StatusInternalServerError)
 		return 
-	}
-}
-
-func getHello(w http.ResponseWriter, _ *http.Request) {
-	log.Info().Msg("got /hello request")
-	_, err := io.WriteString(w, "hello!")
-	if err != nil {
-		log.Warn().Msg("unable to handle writing in getHello")
-		return
-	}
-}
-
-func getGreeting(w http.ResponseWriter, _ *http.Request) {
-	log.Info().Msg("got /api/hello request")
-	_, err := io.WriteString(w, `
-	<!DOCTYPE html>
-	<html lang="en">
-	<head>
-		<meta charset="UTF-8">
-		<meta http-equiv="X-UA-Compatible" content="IE=edge">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-		<title>Document</title>
-	</head>
-	<body>
-		<h1>Hello from api request</h1>
-		<br/>
-		<h2> Explanation </h2>
-		<p>Strange to think that this is an api not a web page</p>
-	</body>
-	</html>
-	`)
-	if err != nil {
-		log.Info().Msg("unable to handle writing in getGreeting")
-		return
 	}
 }
