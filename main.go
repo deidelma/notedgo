@@ -1,30 +1,35 @@
+
 package main
 
 import (
-	"os"
-	"os/signal"
-	"syscall"
+	"net/http"
+	"embed"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/deidelma/notedgo/noted"
 
-	"github.com/rs/zerolog/log"
 )
 
+//go:embed all:noted/templates
+// var res embed.FS
 
-// put finalization logic here -- executed just before exit.
-func cleanup() {
-	log.Info().Msg("exiting program")
-}
+//go:embed all:noted/static
+var static embed.FS
 
-func main() {
-	c := make(chan os.Signal)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-c
-		cleanup()
-		os.Exit(0)
-	}()
+func main(){
 	noted.InitializeLogger()
-	noted.LoadConfiguration(os.Args[0], os.Args[1:])
-	noted.InitServer()
+	r := chi.NewRouter()
+	r.Use(middleware.Logger)
+	
+	fs := http.FileServer(http.FS(static))
+	r.Handle("/static/*", http.StripPrefix("/static/", fs))
+
+	r.Get("/", noted.GetIndex)
+	r.Get("/trigger_delay", noted.GetTriggerDelay)
+	r.Get("/hello", func( w http.ResponseWriter, r *http.Request){
+		w.Write([]byte("Hello1"))
+	})
+	http.ListenAndServe(":5823", r)
 }
