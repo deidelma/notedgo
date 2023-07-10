@@ -12,9 +12,8 @@ import (
 
 var (
 	//go:embed all:templates
-	res   embed.FS
+	res embed.FS
 )
-
 
 func GetIndex(writer http.ResponseWriter, request *http.Request) {
 	page := "templates/index.gohtml"
@@ -36,13 +35,13 @@ func GetIndex(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
-func GetTriggerDelay(w http.ResponseWriter, r *http.Request){
+func GetTriggerDelay(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Param q from r.URL.Query:%s\n", r.URL.Query().Get("bo"))
 	q := r.URL.Query()
 	_, err := io.WriteString(w, fmt.Sprintf("<h3>%s</h3>", q.Get("q")))
 	if err != nil {
 		log.Warn().Msg("Unable to write after trigger")
 		w.WriteHeader(http.StatusInternalServerError)
-		return 
+		return
 	}
 }
