@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  app:
+    container_name: notedgo
+    image: notedgo 
+    build:
+      context: .
+      target: development
+    volumes:
+      - .:/app 
+    ports:
+      - 5823:5823
