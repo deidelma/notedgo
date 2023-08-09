@@ -15,8 +15,8 @@ import (
 
 const defaultConfigurationFile = ".config/noted/noted.json"
 
-// State holds the configuration information for the project
-var State struct {
+// ConfigState holds the configuration information for the project
+var ConfigState struct {
 	Path  string
 	Data  *ConfigData
 	Debug bool
@@ -25,9 +25,9 @@ var State struct {
 // initialize the configuration data and path to their defaults
 func init() {
 	home, _ := os.UserHomeDir()
-	State.Path = filepath.Join(home, defaultConfigurationFile)
-	State.Data = MakeDefaultConfiguration()
-	State.Debug = false
+	ConfigState.Path = filepath.Join(home, defaultConfigurationFile)
+	ConfigState.Data = MakeDefaultConfiguration()
+	ConfigState.Debug = false
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 }
 
@@ -148,7 +148,7 @@ func LoadConfiguration(programName string, args []string) error {
 		log.Debug().Msg(fmt.Sprintf("using custom configuration file: %s", cmdData.ConfigPath))
 		LoadConfigurationFromPath(cmdData.ConfigPath)
 	} else {
-		LoadConfigurationFromPath(State.Path)
+		LoadConfigurationFromPath(ConfigState.Path)
 	}
 	return nil
 }
@@ -199,5 +199,5 @@ func LoadConfigurationFromPath(path string) {
 		log.Err(err).Msg("unable to read configuration file")
 		os.Exit(2)
 	}
-	State.Data = c
+	ConfigState.Data = c
 }

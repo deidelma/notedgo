@@ -21,7 +21,6 @@ import (
 //go:embed all:static
 var static embed.FS
 
-// TODO: implement https://github.com/go-chi/chi/blob/master/_examples/graceful/main.go to allow graceful exit using context
 func main() {
 	// create the server
 	server := &http.Server{Addr: "0.0.0.0:5823", Handler: service()}
@@ -55,7 +54,9 @@ func main() {
 		//
 		// put cleanup function calls here
 		//
-		log.Info().Msg("Notedgo shutting down")
+		log.Info().Msg("Mock file cleanup initiated")
+		time.Sleep(1 * time.Second)
+		log.Info().Msg("Notedgo shutting down gracefully")
 		serverStopCtx()
 	}()
 
